@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/liqotech/liqo/internal/discovery/kubeconfig"
+	"github.com/liqotech/liqo/internal/monitoring"
 	advpkg "github.com/liqotech/liqo/pkg/advertisement-operator"
 	"github.com/liqotech/liqo/pkg/crdClient"
 	"github.com/liqotech/liqo/pkg/labelPolicy"
@@ -60,6 +61,9 @@ type AdvResources struct {
 func StartBroadcaster(homeClusterId, localKubeconfigPath, peeringRequestName, saName string) error {
 	klog.V(6).Info("starting broadcaster")
 
+	monitoring.PeeringProcessExecutionStarted()
+	monitoring.PeeringProcessEventRegister(monitoring.ForeignBroadcaster, monitoring.CreateAdvertisement, monitoring.Start)
+
 	// create the Advertisement client to the local cluster
 	localClient, err := advtypes.CreateAdvertisementClient(localKubeconfigPath, nil, true)
 	if err != nil {
@@ -80,6 +84,7 @@ func StartBroadcaster(homeClusterId, localKubeconfigPath, peeringRequestName, sa
 	}
 
 	// get the PeeringRequest from the foreign cluster which requested resources
+	monitoring.PeeringProcessEventRegister(monitoring.ForeignBroadcaster, monitoring.GetPeeringRequest, monitoring.Start)
 	tmp, err := discoveryClient.Resource("peeringrequests").Get(peeringRequestName, metav1.GetOptions{})
 	if err != nil {
 		klog.Errorln(err, "Unable to get PeeringRequest "+peeringRequestName)
@@ -89,10 +94,12 @@ func StartBroadcaster(homeClusterId, localKubeconfigPath, peeringRequestName, sa
 	if !ok {
 		return errors.New("retrieved object is not a PeeringRequest")
 	}
+	monitoring.PeeringProcessEventRegister(monitoring.ForeignBroadcaster, monitoring.GetPeeringRequest, monitoring.End)
 
 	foreignClusterId := pr.Name
 
 	// get the Secret with the permission to create Advertisements and Secrets on foreign cluster
+	monitoring.PeeringProcessEventRegister(monitoring.ForeignBroadcaster, monitoring.CreateAdvertisementClient, monitoring.Start)
 	secretForAdvertisementCreation, err := localClient.Client().CoreV1().Secrets(pr.Spec.KubeConfigRef.Namespace).Get(context.TODO(), pr.Spec.KubeConfigRef.Name, metav1.GetOptions{})
 	if err != nil {
 		klog.Errorln(err, "Unable to get PeeringRequest secret")
@@ -119,6 +126,7 @@ func StartBroadcaster(homeClusterId, localKubeconfigPath, peeringRequestName, sa
 	} else {
 		klog.Info("Correctly created client to remote cluster " + foreignClusterId)
 	}
+	monitoring.PeeringProcessEventRegister(monitoring.ForeignBroadcaster, monitoring.CreateAdvertisementClient, monitoring.End)
 
 	broadcaster := AdvertisementBroadcaster{
 		LocalClient:        localClient,
@@ -319,6 +327,9 @@ func (b *AdvertisementBroadcaster) SendAdvertisementToForeignCluster(advToCreate
 			klog.Errorln("Unable to create Advertisement " + advToCreate.Name + " on remote cluster " + b.ForeignClusterId)
 			return nil, err
 		} else {
+			monitoring.PeeringProcessExecutionCompleted(monitoring.ForeignBroadcaster)
+			monitoring.PeeringProcessEventRegister(monitoring.ForeignBroadcaster, monitoring.CreateAdvertisement, monitoring.End)
+
 			// Advertisement created, set the owner reference of the secret so that it is deleted when the adv is removed
 			adv = obj.(*advtypes.Advertisement)
 			klog.Info("Correctly created advertisement on remote cluster " + b.ForeignClusterId)

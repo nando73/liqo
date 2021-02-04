@@ -5,13 +5,8 @@ go 1.13
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.0
 	contrib.go.opencensus.io/exporter/ocagent v0.7.0
-	github.com/agrison/go-commons-lang v0.0.0-20200208220349-58e9fcb95174
 	github.com/apparentlymart/go-cidr v1.1.0
-	github.com/atotto/clipboard v0.1.2
 	github.com/coreos/go-iptables v0.4.5
-	github.com/gen2brain/beeep v0.0.0-20200526185328-e9c15c258e28
-	github.com/gen2brain/dlgs v0.0.0-20201118155338-03fe7f81ad25
-	github.com/getlantern/systray v1.1.0
 	github.com/go-logr/logr v0.1.0
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/google/go-cmp v0.5.1
@@ -26,15 +21,11 @@ require (
 	github.com/miekg/dns v1.1.27
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/modern-go/reflect2 v1.0.1
-	github.com/oleiade/lane v1.0.0
 	github.com/onsi/ginkgo v1.14.2
 	github.com/onsi/gomega v1.10.3
-	github.com/ozgio/strutil v0.3.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.8.0 // indirect
-	github.com/prometheus/common v0.15.0 // indirect
+	github.com/prometheus/client_golang v1.9.0
 	github.com/sirupsen/logrus v1.6.0
-	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.6.1
@@ -49,7 +40,6 @@ require (
 	golang.org/x/text v0.3.4 // indirect
 	golang.org/x/tools v0.0.0-20201116002733-ac45abd4c88c
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20200609130330-bd2cb7843e1b
-	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.19.4

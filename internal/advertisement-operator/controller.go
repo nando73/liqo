@@ -21,6 +21,7 @@ import (
 	configv1alpha1 "github.com/liqotech/liqo/apis/config/v1alpha1"
 	discoveryv1alpha1 "github.com/liqotech/liqo/apis/discovery/v1alpha1"
 	advtypes "github.com/liqotech/liqo/apis/sharing/v1alpha1"
+	"github.com/liqotech/liqo/internal/monitoring"
 	advpkg "github.com/liqotech/liqo/pkg/advertisement-operator"
 	"github.com/liqotech/liqo/pkg/crdClient"
 	"github.com/liqotech/liqo/pkg/discovery"
@@ -69,6 +70,7 @@ type AdvertisementReconciler struct {
 
 func (r *AdvertisementReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
+	monitoring.PeeringProcessExecutionStarted()
 
 	// start the advertisement garbage collector
 	go r.garbaceCollector.Do(func() {
@@ -130,11 +132,14 @@ func (r *AdvertisementReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	}
 
 	if !adv.Status.VkCreated {
+		monitoring.PeeringProcessEventRegister(monitoring.AdvertisementOperator, monitoring.CreateVirtualKubelet, monitoring.Start)
+
 		err := r.createVirtualKubelet(ctx, &adv)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		klog.Info("Correct creation of virtual kubelet deployment for cluster " + adv.Spec.ClusterId)
+
 		// add finalizer
 		if !slice.ContainsString(adv.Finalizers, FinalizerString, nil) {
 			adv.Finalizers = append(adv.Finalizers, FinalizerString)

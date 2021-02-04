@@ -27,6 +27,7 @@ import (
 	"github.com/liqotech/liqo/internal/discovery"
 	"github.com/liqotech/liqo/internal/discovery/kubeconfig"
 	"github.com/liqotech/liqo/internal/discovery/utils"
+	"github.com/liqotech/liqo/internal/monitoring"
 	"github.com/liqotech/liqo/pkg/clusterID"
 	"github.com/liqotech/liqo/pkg/crdClient"
 	discoveryPkg "github.com/liqotech/liqo/pkg/discovery"
@@ -71,6 +72,8 @@ type ForeignClusterReconciler struct {
 func (r *ForeignClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 
+	monitoring.PeeringProcessExecutionStarted()
+
 	klog.V(4).Infof("Reconciling ForeignCluster %s", req.Name)
 
 	tmp, err := r.crdClient.Resource("foreignclusters").Get(req.Name, metav1.GetOptions{})
@@ -84,6 +87,14 @@ func (r *ForeignClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			Requeue:      true,
 			RequeueAfter: r.RequeueAfter,
 		}, goerrors.New("created object is not a ForeignCluster")
+	}
+
+	startJoinProcess := false
+	// check if the Join flag is set true and the Status of the join process is false
+	if fc.Spec.Join && !fc.Status.Outgoing.Joined {
+		// expose the metric to monitor the Begin of the Creation of the Reering Request
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CreatePeeringRequest, monitoring.Start)
+		startJoinProcess = true
 	}
 
 	requireUpdate := false
@@ -145,6 +156,9 @@ func (r *ForeignClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// check for NetworkConfigs
+	if startJoinProcess {
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CheckNetworkConfigs, monitoring.Start)
+	}
 	err = r.checkNetwork(fc, &requireUpdate)
 	if err != nil {
 		klog.Error(err)
@@ -153,8 +167,14 @@ func (r *ForeignClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			RequeueAfter: r.RequeueAfter,
 		}, err
 	}
+	if startJoinProcess {
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CheckNetworkConfigs, monitoring.End)
+	}
 
 	// check for TunnelEndpoints
+	if startJoinProcess {
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CheckTunnelEndpoints, monitoring.Start)
+	}
 	err = r.checkTEP(fc, &requireUpdate)
 	if err != nil {
 		klog.Error(err)
@@ -163,8 +183,14 @@ func (r *ForeignClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			RequeueAfter: r.RequeueAfter,
 		}, err
 	}
+	if startJoinProcess {
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CheckTunnelEndpoints, monitoring.End)
+	}
 
 	// check if linked advertisement exists
+	if startJoinProcess {
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CheckAdvertisement, monitoring.Start)
+	}
 	if fc.Status.Outgoing.Advertisement != nil {
 		tmp, err = r.advertisementClient.Resource("advertisements").Get(fc.Status.Outgoing.Advertisement.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
@@ -212,8 +238,14 @@ func (r *ForeignClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			}
 		}
 	}
+	if startJoinProcess {
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CheckAdvertisement, monitoring.End)
+	}
 
 	// check if linked peeringRequest exists
+	if startJoinProcess {
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CheckPeeringRequest, monitoring.Start)
+	}
 	if fc.Status.Incoming.PeeringRequest != nil {
 		tmp, err = r.crdClient.Resource("peeringrequests").Get(fc.Status.Incoming.PeeringRequest.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
@@ -261,6 +293,9 @@ func (r *ForeignClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			}
 		}
 	}
+	if startJoinProcess {
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CheckPeeringRequest, monitoring.End)
+	}
 
 	// if it has been discovered thanks to incoming peeringRequest and it has no active connections, delete it
 	if fc.Spec.DiscoveryType == discoveryPkg.IncomingPeeringDiscovery && fc.DeletionTimestamp.IsZero() && fc.Status.Incoming.PeeringRequest == nil && fc.Status.Outgoing.Advertisement == nil {
@@ -298,6 +333,12 @@ func (r *ForeignClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 				RequeueAfter: r.RequeueAfter,
 			}, err
 		}
+
+		monitoring.PeeringProcessExecutionCompleted(monitoring.ForeignClusterOperator)
+
+		// expose the metric to monitor the End of the creation of the Peering Request
+		monitoring.PeeringProcessEventRegister(monitoring.ForeignClusterOperator, monitoring.CreatePeeringRequest, monitoring.End)
+
 		requireUpdate = true
 	}
 

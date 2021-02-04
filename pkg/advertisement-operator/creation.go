@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	advtypes "github.com/liqotech/liqo/apis/sharing/v1alpha1"
+	"github.com/liqotech/liqo/internal/monitoring"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -224,6 +225,8 @@ func CreateOrUpdate(c client.Client, ctx context.Context, object interface{}) er
 				return err
 			}
 		}
+		monitoring.PeeringProcessExecutionCompleted(monitoring.AdvertisementOperator)
+		monitoring.PeeringProcessEventRegister(monitoring.AdvertisementOperator, monitoring.CreateVirtualKubelet, monitoring.End)
 	case *v1.ConfigMap:
 		var cm v1.ConfigMap
 		err := c.Get(ctx, types.NamespacedName{
